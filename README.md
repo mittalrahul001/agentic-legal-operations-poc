@@ -117,7 +117,7 @@ Recommended production metrics include routing accuracy, approval-route precisio
 2. Move approval policy into an owned, versioned policy service.
 3. Add authenticated approval tasks and separation of duties.
 4. Create narrow child workflows for HRIS, Finance, Legal, and manual tasks.
-5. Add idempotency, durable checkpoints, retries, dead-letter handling, and compensation.
+5. Add idempotency, durable checkpoints, retries, and compensation.
 6. Reconcile expected state against authoritative downstream systems.
 7. Add privilege-aware access, retention, audit evidence, and security monitoring.
 8. Run the evaluation suite in CI and monitor quality drift.
