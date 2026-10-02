@@ -34,7 +34,8 @@ The design intentionally separates probabilistic reasoning from corporate author
 | Path | Purpose |
 |---|---|
 | `workflow/reorg-agent-poc.workflow.json` | Importable n8n workflow |
-| `docs/design-document.html` | Self-contained architecture and design document |
+| [`docs/design-document.pdf`](docs/design-document.pdf) | Open this version directly in GitHub |
+| `docs/design-document.html` | Editable, self-contained source document |
 | `examples/sample-requests.md` | Four synthetic demo scenarios |
 | `evaluations/evaluation-cases.json` | Initial evaluation set and expected outcomes |
 | `SECURITY.md` | POC security boundaries and production requirements |
@@ -136,4 +137,3 @@ Recommended production metrics include routing accuracy, approval-route precisio
 - n8n Chat Trigger and AI Agent nodes
 - OpenAI Chat Model nodes
 - Deterministic JavaScript policy step
-
