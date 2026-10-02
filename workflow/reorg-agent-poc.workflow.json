@@ -1,0 +1,183 @@
+{
+  "name": "POC - Agentic Reorganization Intake and Approval Routing",
+  "nodes": [
+    {
+      "parameters": {
+        "public": false,
+        "options": {
+          "responseMode": "lastNode"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [-920, 0],
+      "id": "01111111-1111-4111-8111-111111111111",
+      "name": "When chat message received",
+      "webhookId": "reorg-agent-poc-chat"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "request-id",
+              "name": "requestId",
+              "value": "={{ 'REQ-' + $now.toFormat('yyyyLLdd-HHmmss') }}",
+              "type": "string"
+            },
+            {
+              "id": "raw-message",
+              "name": "rawMessage",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "received-at",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-680, 0],
+      "id": "02222222-2222-4222-8222-222222222222",
+      "name": "Capture Incoming Message"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.rawMessage }}",
+        "options": {
+          "systemMessage": "You are the Super Agent for enterprise work requests. Classify the request; do not execute it. Return ONLY valid JSON with this exact shape: {\"domain\":\"HR_REORG|OTHER\",\"intent\":\"TEAM_TRANSFER|MANAGER_CHANGE|COST_CENTER_CHANGE|POSITION_ELIMINATION|OTHER\",\"risk\":\"LOW|MEDIUM|HIGH\",\"confidence\":0.0,\"riskSignals\":[],\"missingInformation\":[],\"routeTo\":\"REORG_HR_AGENT|HUMAN_TRIAGE\",\"summary\":\"\"}. Route to REORG_HR_AGENT only for HR or reorganization changes. Treat budget, cost center, multiple countries, employment terms, or position elimination as risk signals. Never invent employee IDs, dates, cost centers, managers, countries, or approvals. If material information is ambiguous, list it under missingInformation."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [-420, 0],
+      "id": "03333333-3333-4333-8333-333333333333",
+      "name": "Super Agent - Classify and Route"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [-420, 220],
+      "id": "04444444-4444-4444-8444-444444444444",
+      "name": "OpenAI Model - Super Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.text ?? '';\nconst clean = String(raw).replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\nlet classification;\ntry { classification = JSON.parse(clean); } catch (error) {\n  classification = { domain: 'OTHER', intent: 'OTHER', risk: 'HIGH', confidence: 0, riskSignals: ['UNPARSEABLE_AGENT_OUTPUT'], missingInformation: ['Human review of classifier output'], routeTo: 'HUMAN_TRIAGE', summary: clean };\n}\nreturn [{ json: {\n  requestId: $('Capture Incoming Message').item.json.requestId,\n  receivedAt: $('Capture Incoming Message').item.json.receivedAt,\n  rawMessage: $('Capture Incoming Message').item.json.rawMessage,\n  classification\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-140, 0],
+      "id": "05555555-5555-4555-8555-555555555555",
+      "name": "Validate Routing Envelope"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Original request:\n{{ $json.rawMessage }}\n\nSuper Agent classification:\n{{ JSON.stringify($json.classification) }}",
+        "options": {
+          "systemMessage": "You are a Reorg/HR specialist agent. Convert the request and classification into a proposed canonical case. Do not approve or execute anything. Return ONLY valid JSON with this exact shape: {\"changeSummary\":\"\",\"effectiveDate\":null,\"changeTypes\":[],\"employeeIds\":[],\"employeeCount\":null,\"sourceOrg\":null,\"destinationOrg\":null,\"currentManager\":null,\"newManager\":null,\"currentCostCenter\":null,\"newCostCenter\":null,\"countries\":[],\"budgetTransferRequired\":false,\"headcountImpact\":false,\"roleOrTermsChange\":false,\"positionElimination\":false,\"crossCountryTransfer\":false,\"consultationRiskSignal\":false,\"missingFields\":[],\"warnings\":[]}. Preserve unknown values as null or empty arrays. Never invent identifiers. If Germany or another jurisdiction with possible worker consultation appears, set consultationRiskSignal=true and add a warning that Legal must determine applicability."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [140, 0],
+      "id": "06666666-6666-4666-8666-666666666666",
+      "name": "Reorg HR Agent - Build Case"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [140, 220],
+      "id": "07777777-7777-4777-8777-777777777777",
+      "name": "OpenAI Model - Reorg Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.text ?? '';\nconst clean = String(raw).replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\nlet reorg;\ntry { reorg = JSON.parse(clean); } catch (error) {\n  reorg = { changeSummary: clean, changeTypes: [], employeeIds: [], countries: [], missingFields: ['Human review of specialist output'], warnings: ['Agent output was not valid JSON'] };\n}\nconst classification = $('Validate Routing Envelope').item.json.classification;\nconst hasHRChange = (reorg.changeTypes?.length ?? 0) > 0 || classification.domain === 'HR_REORG';\nconst financeReasons = [];\nif (reorg.budgetTransferRequired) financeReasons.push('budget transfer');\nif (reorg.headcountImpact) financeReasons.push('headcount impact');\nif (reorg.currentCostCenter || reorg.newCostCenter) financeReasons.push('cost-center change');\nif (reorg.positionElimination) financeReasons.push('position elimination');\nconst legalReasons = [];\nif (reorg.positionElimination) legalReasons.push('position elimination / RIF signal');\nif (reorg.crossCountryTransfer) legalReasons.push('cross-country transfer');\nif (reorg.roleOrTermsChange) legalReasons.push('role or employment-terms change');\nif (reorg.consultationRiskSignal) legalReasons.push('local consultation-risk signal');\nconst missing = [...new Set([...(classification.missingInformation ?? []), ...(reorg.missingFields ?? [])])];\nconst needsClarification = classification.routeTo !== 'REORG_HR_AGENT' || classification.confidence < 0.75 || missing.length > 0;\nconst approvals = [\n  { role: 'HR', required: hasHRChange, reasons: hasHRChange ? ['employee or organization change'] : [] },\n  { role: 'FINANCE', required: financeReasons.length > 0, reasons: financeReasons },\n  { role: 'LEGAL', required: legalReasons.length > 0, reasons: legalReasons }\n];\nconst caseId = `REORG-POC-${Date.now()}`;\nreturn [{ json: {\n  output: {\n    status: needsClarification ? 'NEEDS_CLARIFICATION' : 'AWAITING_APPROVAL',\n    message: needsClarification ? 'The agents created a draft but need human clarification before approval routing.' : 'The draft case is ready for human approval. No enterprise system has been changed.',\n    caseId,\n    requestId: $('Validate Routing Envelope').item.json.requestId,\n    classification,\n    canonicalCase: reorg,\n    approvalRoute: approvals,\n    missingInformation: missing,\n    nextStep: needsClarification ? 'Requester supplies the missing information.' : 'Collect all required human approvals against this case version.',\n    demoOnly: true\n  }\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "id": "08888888-8888-4888-8888-888888888888",
+      "name": "Policy Router - HR Finance Legal"
+    },
+    {
+      "parameters": {
+        "content": "## Agentic reorganization POC\n\n1. A chat message starts the automation.\n2. **Super Agent** classifies and routes.\n3. **Reorg / HR Agent** creates the canonical case.\n4. **Policy Router** deterministically selects HR, Finance, and Legal approvals.\n\nNo HRIS or Finance write occurs in this POC.",
+        "height": 250,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-920, -360],
+      "id": "09999999-9999-4999-8999-999999999999",
+      "name": "POC Guide"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [[{"node":"Capture Incoming Message","type":"main","index":0}]]
+    },
+    "Capture Incoming Message": {
+      "main": [[{"node":"Super Agent - Classify and Route","type":"main","index":0}]]
+    },
+    "OpenAI Model - Super Agent": {
+      "ai_languageModel": [[{"node":"Super Agent - Classify and Route","type":"ai_languageModel","index":0}]]
+    },
+    "Super Agent - Classify and Route": {
+      "main": [[{"node":"Validate Routing Envelope","type":"main","index":0}]]
+    },
+    "Validate Routing Envelope": {
+      "main": [[{"node":"Reorg HR Agent - Build Case","type":"main","index":0}]]
+    },
+    "OpenAI Model - Reorg Agent": {
+      "ai_languageModel": [[{"node":"Reorg HR Agent - Build Case","type":"ai_languageModel","index":0}]]
+    },
+    "Reorg HR Agent - Build Case": {
+      "main": [[{"node":"Policy Router - HR Finance Legal","type":"main","index":0}]]
+    },
+    "Policy Router - HR Finance Legal": {
+      "main": [[]]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "0aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
